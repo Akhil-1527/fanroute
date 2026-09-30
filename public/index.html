@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fanroute</title>
+<meta name="description" content="Plan a van tour through the US cities where your fans over-index, with venues, support acts and poster spots for every stop.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M6 26 C10 12 22 20 26 6' fill='none' stroke='%23e8590c' stroke-width='4' stroke-linecap='round'/%3E%3Ccircle cx='6' cy='26' r='4' fill='%23e8590c'/%3E%3Ccircle cx='26' cy='6' r='4' fill='%23e8590c'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root {
+  --bg: #faf8f5; --panel: #fff; --ink: #1c1917; --muted: #6b645c; --line: #e7e2da;
+  --accent: #e8590c; --accent-soft: #fdebdd; --ok: #2f7d4f; --bad: #b42318;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161412; --panel: #211e1b; --ink: #f3efe9; --muted: #a79f95; --line: #37322d;
+    --accent: #ff7a2e; --accent-soft: #3a2518; --ok: #5fbf85; --bad: #f97066;
+    color-scheme: dark;
+  }
+}
+#map .leaflet-tile-pane { filter: saturate(0.35); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) #map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(0.85) saturate(0.35); }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+a { color: var(--accent); }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 16px; }
+header { padding: 28px 0 8px; }
+h1 { margin: 0; font-size: 30px; letter-spacing: -0.02em; display: flex; align-items: center; gap: 10px; }
+.tag { margin: 4px 0 0; color: var(--muted); font-size: 16px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
+form.plan { display: grid; grid-template-columns: 2fr 2fr 1fr 1.4fr 1.2fr auto; gap: 12px; align-items: end; margin-top: 18px; }
+label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); font-weight: 600; }
+input { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 9px; padding: 9px 11px; min-width: 0; }
+input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+button { font: inherit; font-weight: 600; border: 0; border-radius: 9px; padding: 10px 16px; cursor: pointer; background: var(--accent); color: #fff; }
+button:disabled { opacity: 0.55; cursor: wait; }
+button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); padding: 5px 10px; font-size: 13px; }
+button.ghost:hover { color: var(--ink); border-color: var(--muted); }
+.chat { margin-top: 12px; }
+.chat form { display: flex; gap: 8px; }
+.chat input { flex: 1; }
+.log { display: grid; gap: 8px; margin-bottom: 10px; }
+.msg { padding: 9px 12px; border-radius: 10px; max-width: 80%; white-space: pre-wrap; }
+.msg.user { justify-self: end; background: var(--accent-soft); }
+.msg.bot { background: var(--bg); border: 1px solid var(--line); }
+ol.steps { list-style: none; padding: 0; margin: 14px 0 0; display: grid; gap: 4px; color: var(--muted); font-size: 14px; }
+ol.steps li::before { content: "✓ "; color: var(--ok); }
+ol.steps li.now::before { content: "… "; color: var(--accent); }
+ol.steps li.err { color: var(--bad); }
+ol.steps li.err::before { content: "! "; color: var(--bad); }
+#result { display: none; margin-top: 18px; }
+.sum { display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 15px; margin-bottom: 12px; }
+.sum b { font-size: 20px; }
+.grid { display: grid; grid-template-columns: 1fr 330px; gap: 16px; }
+#map { height: 480px; border-radius: 14px; border: 1px solid var(--line); z-index: 0; }
+aside { display: grid; gap: 16px; align-content: start; }
+aside h3, .stop h3 { margin: 0 0 8px; font-size: 15px; }
+aside ul { margin: 0; padding-left: 18px; }
+.bars { display: grid; gap: 5px; font-size: 13px; }
+.bar { display: grid; grid-template-columns: 110px 1fr 44px; gap: 8px; align-items: center; }
+.bar i { display: block; height: 8px; border-radius: 4px; background: var(--accent); }
+.bar i.neg { background: var(--line); }
+.stops { display: grid; gap: 12px; margin: 16px 0 40px; }
+.stop { display: grid; grid-template-columns: 44px 1fr; gap: 14px; }
+.num { width: 36px; height: 36px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 700; display: grid; place-items: center; }
+.meta { color: var(--muted); font-size: 14px; margin: -4px 0 10px; }
+.cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; font-size: 14px; }
+.cols h4 { margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.cols ul { margin: 0; padding-left: 16px; }
+.cols small { color: var(--muted); display: block; }
+.acts { display: flex; gap: 8px; margin-top: 12px; }
+.pin { background: var(--accent); color: #fff; border-radius: 50%; width: 26px; height: 26px; display: grid; place-items: center; font: 700 13px/1 ui-sans-serif, system-ui, sans-serif; border: 2px solid #fff; }
+footer { color: var(--muted); font-size: 13px; padding: 20px 0 40px; border-top: 1px solid var(--line); }
+@media (max-width: 900px) {
+  form.plan { grid-template-columns: 1fr 1fr; }
+  form.plan button { grid-column: 1 / -1; }
+  .grid { grid-template-columns: 1fr; }
+  #map { height: 360px; }
+  .cols { grid-template-columns: 1fr; }
+  .msg { max-width: 92%; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><path d="M6 26 C10 12 22 20 26 6" fill="none" stroke="var(--accent)" stroke-width="4" stroke-linecap="round"/><circle cx="6" cy="26" r="4" fill="var(--accent)"/><circle cx="26" cy="6" r="4" fill="var(--accent)"/></svg>Fanroute</h1>
+    <p class="tag">Book the cities where your fans already are. A tour planner for independent artists, built on Qloo taste data.</p>
+  </header>
+
+  <section class="card">
+    <form class="plan" id="plan">
+      <label>Artist <input name="artist" required placeholder="e.g. Wednesday" autocomplete="off"></label>
+      <label>Home base <input name="home" required placeholder="e.g. Asheville, NC" autocomplete="off"></label>
+      <label>Shows <input name="shows" type="number" min="1" max="20" value="8"></label>
+      <label>First show <input name="start" type="date"></label>
+      <label>Miles a day <input name="maxMiles" type="number" min="100" max="800" step="25" value="350"></label>
+      <button id="go">Plan the tour</button>
+    </form>
+    <div class="chat">
+      <div class="log" id="log" aria-live="polite"></div>
+      <form id="ask">
+        <input id="q" placeholder="Or ask the agent: &quot;drop Chicago and add a Texas swing&quot; or &quot;is Boise worth it?&quot;" autocomplete="off">
+        <button class="ghost" id="send">Ask</button>
+      </form>
+    </div>
+    <ol class="steps" id="steps" aria-live="polite"></ol>
+  </section>
+
+  <section id="result">
+    <div class="sum" id="sum"></div>
+    <div class="grid">
+      <div id="map"></div>
+      <aside>
+        <div class="card"><h3>Who the fans are</h3><div class="bars" id="aud"></div></div>
+        <div class="card"><h3>Brands they share</h3><ul id="brands"></ul><small class="meta">Sponsor and merch collab ideas.</small></div>
+        <div class="card"><h3>Podcasts to pitch</h3><ul id="pods"></ul></div>
+      </aside>
+    </div>
+    <div class="stops" id="stops"></div>
+  </section>
+
+  <footer>Fan data from the Qloo Taste AI API. Affinity shows where fans over-index; it is not ticket sales, so treat it as a lead, not a promise.</footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const day = d => new Date(`${d}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
+const n = x => Number(x).toLocaleString('en-US');
+let params = {}, plan = null, chat = [], map, layer;
+
+$('#plan').start.value = new Date(Date.now() + 60 * 864e5).toISOString().slice(0, 10);
+
+$('#plan').onsubmit = e => {
+  e.preventDefault();
+  params = { ...Object.fromEntries(new FormData(e.target)), skip: [] };
+  run(params);
+};
+
+function busy(on) { $('#go').disabled = $('#send').disabled = on; }
+
+function step(text, cls = 'now') {
+  document.querySelectorAll('#steps li.now').forEach(li => li.classList.remove('now'));
+  $('#steps').insertAdjacentHTML('beforeend', `<li class="${cls}">${esc(text)}</li>`);
+}
+
+async function run(p) {
+  $('#steps').innerHTML = '';
+  busy(true);
+  try {
+    const r = await fetch('/api/plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
+    const reader = r.body.pipeThrough(new TextDecoderStream()).getReader();
+    let buf = '';
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      const lines = (buf += value).split('\n');
+      buf = lines.pop();
+      for (const line of lines.filter(Boolean)) {
+        const m = JSON.parse(line);
+        if (m.step) step(m.step);
+        if (m.error) step(m.error, 'err');
+        if (m.plan) { step('Tour ready', ''); render(m.plan); }
+      }
+    }
+  } catch (e) {
+    step(`Could not reach the planner: ${e.message}`, 'err');
+  }
+  busy(false);
+}
+
+$('#ask').onsubmit = async e => {
+  e.preventDefault();
+  const q = $('#q').value.trim();
+  if (!q) return;
+  $('#q').value = '';
+  say('user', q);
+  busy(true);
+  try {
+    const r = await (await fetch('/api/ask', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: chat, params: { ...Object.fromEntries(new FormData($('#plan'))), ...params }, context: plan?.brief }),
+    })).json();
+    say('assistant', r.reply || 'No answer.');
+    if (r.plan) render(r.plan);
+  } catch (e) {
+    say('assistant', `Could not reach the agent: ${e.message}`);
+  }
+  busy(false);
+};
+
+function say(role, content) {
+  chat.push({ role, content });
+  $('#log').insertAdjacentHTML('beforeend', `<div class="msg ${role === 'user' ? 'user' : 'bot'}">${esc(content)}</div>`);
+}
+
+function render(t) {
+  plan = t;
+  params = t.params;
+  for (const k of ['artist', 'home', 'shows', 'start', 'maxMiles']) $('#plan')[k].value = t.params[k];
+  $('#result').style.display = 'block';
+  const T = t.totals;
+  $('#sum').innerHTML = T.shows
+    ? `<span><b>${T.shows}</b> shows</span><span><b>${T.days}</b> days</span><span><b>${n(T.miles)}</b> road miles, about</span><span>${esc(t.artist.name)} from ${esc(t.home.name)}</span>`
+    : `<span>No fan city fits within two driving days of ${esc(t.home.name)}. Try more miles a day.</span>`;
+  drawMap(t);
+  $('#aud').innerHTML = audience(t.audience);
+  $('#brands').innerHTML = t.brands.map(b => `<li>${esc(b.name)}</li>`).join('') || '<li>None found</li>';
+  $('#pods').innerHTML = t.podcasts.map(p => `<li>${esc(p.name)}</li>`).join('') || '<li>None found</li>';
+  $('#stops').innerHTML = t.stops.map((s, i) => `
+    <article class="card stop">
+      <div class="num">${i + 1}</div>
+      <div>
+        <h3>${esc(day(s.date))} · ${esc(s.name)}</h3>
+        <p class="meta">Fan rank ${s.rank} of ${t.cities.length} US cities · ${s.legMiles ? `${n(s.legMiles)} mi drive, about ${s.driveHours} h` : 'no drive'}</p>
+        <div class="cols">
+          <div><h4>Venues</h4>${list(s.venues, v => `${esc(v.name)}${v.address ? `<small>${esc(v.address)}</small>` : ''}`)}</div>
+          <div><h4>Support acts</h4>${list(s.coBill, a => esc(a.name))}</div>
+          <div><h4>Poster spots</h4>${list(s.spots, x => `${esc(x.name)}${x.address ? `<small>${esc(x.address)}</small>` : ''}`)}</div>
+        </div>
+        <div class="acts">
+          <button class="ghost" data-pitch="${i}">Copy pitch email</button>
+          <button class="ghost" data-drop="${esc(s.name)}">Drop this city</button>
+        </div>
+      </div>
+    </article>`).join('');
+}
+
+const list = (xs, f) => xs?.length ? `<ul>${xs.map(x => `<li>${f(x)}</li>`).join('')}</ul>` : '<small>None found</small>';
+
+function audience(a) {
+  if (!a) return '<small>No audience data.</small>';
+  const rows = Object.values(a).flatMap(g => Object.entries(g || {})).filter(([, v]) => typeof v === 'number');
+  const max = Math.max(...rows.map(([, v]) => Math.abs(v)), 0.01);
+  return rows.map(([k, v]) => `<div class="bar"><span>${esc(k.replace(/_/g, ' '))}</span><i class="${v < 0 ? 'neg' : ''}" style="width:${Math.abs(v) / max * 100}%"></i><span>${v > 0 ? '+' : ''}${Math.round(v * 100)}%</span></div>`).join('');
+}
+
+function drawMap(t) {
+  if (!map) {
+    map = L.map('map', { scrollWheelZoom: false });
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', maxZoom: 12,
+    }).addTo(map);
+  }
+  layer?.remove();
+  layer = L.layerGroup().addTo(map);
+  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+  const top = t.cities[0]?.score || 1;
+  for (const c of t.cities) {
+    L.circleMarker([c.lat, c.lon], { radius: 4 + 14 * c.score / top, color: accent, weight: 1, fillOpacity: 0.15 })
+      .bindTooltip(`${esc(c.name)}: fan rank ${c.rank}`).addTo(layer);
+  }
+  const path = [t.home, ...t.stops, t.home].map(s => [s.lat, s.lon]);
+  L.polyline(path, { color: accent, weight: 3, dashArray: '6 6' }).addTo(layer);
+  L.circleMarker([t.home.lat, t.home.lon], { radius: 7, color: accent, fillColor: '#fff', fillOpacity: 1, weight: 3 })
+    .bindTooltip(`Home: ${esc(t.home.name)}`).addTo(layer);
+  t.stops.forEach((s, i) => L.marker([s.lat, s.lon], { icon: L.divIcon({ className: '', html: `<div class="pin">${i + 1}</div>`, iconSize: [26, 26] }) })
+    .bindTooltip(`${i + 1}. ${esc(s.name)}, ${esc(day(s.date))}`).addTo(layer));
+  map.fitBounds(L.latLngBounds(path).pad(0.2));
+}
+
+function pitch(t, s) {
+  const v = s.venues?.[0]?.name || 'your room';
+  const support = s.coBill?.[0] ? ` If you want a local support act, fans here also love ${s.coBill[0].name}.` : '';
+  return `Subject: Date request for ${t.artist.name}, ${day(s.date)}
+
+Hi ${v} team,
+
+I'm routing a ${t.stops.length}-date run for ${t.artist.name} and would love to play ${v} on ${day(s.date)}. A day either side works too.
+
+We picked ${s.name} on purpose: in Qloo's taste data it ranks ${s.rank} of ${t.cities.length} US cities for ${t.artist.name} fans.${support}
+
+Happy to send streaming numbers, past draws and a rider. Thanks for taking a look.
+
+${t.artist.name}`;
+}
+
+$('#stops').onclick = async e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.dataset.pitch) {
+    await navigator.clipboard.writeText(pitch(plan, plan.stops[b.dataset.pitch]));
+    b.textContent = 'Copied';
+    setTimeout(() => { b.textContent = 'Copy pitch email'; }, 1500);
+  }
+  if (b.dataset.drop) {
+    params = { ...params, skip: [...params.skip, b.dataset.drop] };
+    run(params);
+  }
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+name = "fanroute"
+main = "src/worker.js"
+compatibility_date = "2026-09-01"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+[ai]
+binding = "AI"
+
+# The Qloo key is a secret, not a var: npx wrangler secret put QLOO_API_KEY

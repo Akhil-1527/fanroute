@@ -1,0 +1,9 @@
+{
+  "name": "fanroute",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node dev.js",
+    "check": "node src/route.check.js"
+  }
+}
