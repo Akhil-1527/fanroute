@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Fanroute</title>
-<meta name="description" content="Plan a van tour through the US cities where your fans over-index, with venues, support acts and poster spots for every stop.">
+<meta name="description" content="Tour the cities where your audience already over-indexes. A route planner for independent artists, built on Qloo taste data.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M6 26 C10 12 22 20 26 6' fill='none' stroke='%23e8590c' stroke-width='4' stroke-linecap='round'/%3E%3Ccircle cx='6' cy='26' r='4' fill='%23e8590c'/%3E%3Ccircle cx='26' cy='6' r='4' fill='%23e8590c'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
@@ -64,7 +64,28 @@ aside ul { margin: 0; padding-left: 18px; }
 .bar { display: grid; grid-template-columns: 110px 1fr 44px; gap: 8px; align-items: center; }
 .bar i { display: block; height: 8px; border-radius: 4px; background: var(--accent); }
 .bar i.neg { background: var(--line); }
-.stops { display: grid; gap: 12px; margin: 16px 0 40px; }
+.stops { display: grid; gap: 12px; margin: 16px 0; }
+.example { margin: 10px 0 0; font-size: 14px; color: var(--muted); }
+button.link { background: none; color: var(--accent); padding: 0; text-decoration: underline; }
+#pick { margin-top: 14px; }
+#pick:empty { display: none; }
+#pick h3 { margin: 0 0 4px; font-size: 15px; }
+.cands { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px; margin: 8px 0; }
+button.cand { display: grid; grid-template-columns: 56px 1fr; gap: 10px; text-align: left; background: var(--bg); color: var(--ink); border: 1px solid var(--line); font-weight: 400; padding: 8px; }
+button.cand:hover { border-color: var(--accent); }
+.cand img, .cand .noimg { width: 56px; height: 56px; border-radius: 8px; object-fit: cover; background: var(--line); }
+.cand small { display: block; color: var(--muted); font-size: 12px; }
+.pop { display: block; height: 3px; background: var(--accent); border-radius: 2px; margin-top: 4px; }
+.who { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 14px; }
+.who img { width: 72px; height: 72px; border-radius: 10px; object-fit: cover; flex: none; }
+.who p { margin: 2px 0; color: var(--muted); font-size: 14px; }
+.who summary { cursor: pointer; color: var(--accent); font-size: 14px; }
+.meta span[title], .cols h4[title] { text-decoration: underline dotted; cursor: help; }
+.cols small.inline { display: inline; }
+.hood { margin-bottom: 40px; font-size: 13px; }
+.hood summary { cursor: pointer; font-weight: 600; }
+.hood ol { padding-left: 22px; margin: 8px 0 0; display: grid; gap: 4px; }
+.hood code { font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
 .stop { display: grid; grid-template-columns: 44px 1fr; gap: 14px; }
 .num { width: 36px; height: 36px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 700; display: grid; place-items: center; }
 .meta { color: var(--muted); font-size: 14px; margin: -4px 0 10px; }
@@ -89,18 +110,19 @@ footer { color: var(--muted); font-size: 13px; padding: 20px 0 40px; border-top:
 <div class="wrap">
   <header>
     <h1><svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><path d="M6 26 C10 12 22 20 26 6" fill="none" stroke="var(--accent)" stroke-width="4" stroke-linecap="round"/><circle cx="6" cy="26" r="4" fill="var(--accent)"/><circle cx="26" cy="6" r="4" fill="var(--accent)"/></svg>Fanroute</h1>
-    <p class="tag">Book the cities where your fans already are. A tour planner for independent artists, built on Qloo taste data.</p>
+    <p class="tag">Tour the cities where your audience already over-indexes. A route planner for independent artists, built on Qloo taste data.</p>
   </header>
 
   <section class="card">
     <form class="plan" id="plan">
-      <label>Artist <input name="artist" required placeholder="e.g. Wednesday" autocomplete="off"></label>
-      <label>Home base <input name="home" required placeholder="e.g. Asheville, NC" autocomplete="off"></label>
+      <label>Artist <input name="artist" required placeholder="e.g. Wednesday (add a word if the name is common)" autocomplete="off"></label>
+      <label>Home base <input name="home" required placeholder="e.g. Asheville, NC (city and state)" autocomplete="off"></label>
       <label>Shows <input name="shows" type="number" min="1" max="14" value="8"></label>
       <label>First show <input name="start" type="date"></label>
       <label>Miles a day <input name="maxMiles" type="number" min="100" max="800" step="25" value="350"></label>
       <button id="go">Plan the tour</button>
     </form>
+    <p class="example"><button type="button" class="link" id="example">Try an example: MJ Lenderman from Asheville, NC</button></p>
     <div class="chat">
       <div class="log" id="log" aria-live="polite"></div>
       <form id="ask">
@@ -109,22 +131,26 @@ footer { color: var(--muted); font-size: 13px; padding: 20px 0 40px; border-top:
       </form>
     </div>
     <ol class="steps" id="steps" aria-live="polite"></ol>
+    <div id="pick"></div>
   </section>
 
   <section id="result">
+    <div class="who" id="who"></div>
     <div class="sum" id="sum"></div>
     <div class="grid">
       <div id="map"></div>
       <aside>
-        <div class="card"><h3>Who the fans are</h3><div class="bars" id="aud"></div></div>
-        <div class="card"><h3>Brands they share</h3><ul id="brands"></ul><small class="meta">Sponsor and merch collab ideas.</small></div>
-        <div class="card"><h3>Podcasts to pitch</h3><ul id="pods"></ul></div>
+        <div class="card"><h3>Audience profile</h3><div class="bars" id="aud"></div><small class="meta">Qloo demographics: how this artist's audience over- or under-indexes against Qloo's baseline. Aggregate taste data, not a count of people and not about any individual.</small></div>
+        <div class="card"><h3>Acts this audience loves everywhere</h3><ul id="partners"></ul><small class="meta">From Qloo without a location signal. Package tour and split ideas.</small></div>
+        <div class="card"><h3>Brands this audience over-indexes for</h3><ul id="brands"></ul><small class="meta">Sponsor and merch collab ideas, from Qloo.</small></div>
+        <div class="card"><h3>Podcasts this audience over-indexes for</h3><ul id="pods"></ul></div>
       </aside>
     </div>
     <div class="stops" id="stops"></div>
+    <details class="card hood" id="hood"></details>
   </section>
 
-  <footer>Fan data from the Qloo Taste AI API. Affinity shows where fans over-index; it is not ticket sales, so treat it as a lead, not a promise.</footer>
+  <footer>Numbers labelled Qloo come from the Qloo Taste AI API and describe aggregate taste affinity: where an artist's audience over-indexes. They are not ticket sales, not a count of people, and say nothing about any individual. Ranks, the route, the room order and the pitch text are Fanroute's own interpretation of those numbers. Treat every lead here as a reason to send an email, not as a promise. Of what you type, only the artist name and home city are sent to Qloo. Chat messages go to a Workers AI model, and Fanroute does not store them.</footer>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -139,9 +165,25 @@ $('#plan').start.value = new Date(Date.now() + 60 * 864e5).toISOString().slice(0
 
 $('#plan').onsubmit = e => {
   e.preventDefault();
-  params = { ...Object.fromEntries(new FormData(e.target)), skip: [] };
+  const f = Object.fromEntries(new FormData(e.target));
+  // Keep a picked artist while the name in the box is unchanged.
+  params = { ...f, artistId: f.artist === params.artist ? params.artistId : undefined, skip: [] };
   run(params);
 };
+
+$('#example').onclick = () => {
+  $('#plan').artist.value = 'MJ Lenderman';
+  $('#plan').home.value = 'Asheville, NC';
+  $('#plan').requestSubmit();
+};
+
+// Picker buttons live in the "which one?" box and under "Not this one?" on a result.
+document.addEventListener('click', e => {
+  const b = e.target.closest('button.cand');
+  if (!b || $('#go').disabled) return;
+  params = { ...params, artistId: b.dataset.id };
+  run(params);
+});
 
 function busy(on) { $('#go').disabled = $('#send').disabled = on; }
 
@@ -151,7 +193,7 @@ function step(text, cls = 'now') {
 }
 
 async function run(p) {
-  $('#steps').innerHTML = '';
+  $('#steps').innerHTML = $('#pick').innerHTML = '';
   busy(true);
   try {
     const r = await fetch('/api/plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
@@ -166,6 +208,11 @@ async function run(p) {
         const m = JSON.parse(line);
         if (m.step) step(m.step);
         if (m.error) step(m.error, 'err');
+        if (m.choose) {
+          step(`More than one artist matches "${m.query}". Pick one below.`, '');
+          $('#result').style.display = 'none';
+          pick(m.choose, m.query);
+        }
         if (m.plan) { step('Tour ready', ''); render(m.plan); }
       }
     }
@@ -200,17 +247,32 @@ function say(role, content) {
   $('#log').insertAdjacentHTML('beforeend', `<div class="msg ${role === 'user' ? 'user' : 'bot'}">${esc(content)}</div>`);
 }
 
+const cands = cs => `<div class="cands">${cs.map(c => `
+  <button type="button" class="cand" data-id="${esc(c.id)}">
+    ${c.image ? `<img src="${esc(c.image)}" alt="" loading="lazy">` : '<span class="noimg"></span>'}
+    <span><b>${esc(c.name)}</b>${c.genres.length ? `<small>${esc(c.genres.join(', '))}</small>` : ''}<small>${esc(c.blurb || '')}</small><i class="pop" title="Qloo popularity" style="width:${Math.round((c.popularity || 0) * 100)}%"></i></span>
+  </button>`).join('')}</div>`;
+
+function pick(cs, query) {
+  $('#pick').innerHTML = `<h3>Which ${esc(query)} did you mean?</h3>${cands(cs)}<small class="meta">None of these? Try the exact name, for example add the first album or a band member.</small>`;
+}
+
 function render(t) {
   plan = t;
   params = t.params;
   for (const k of ['artist', 'home', 'shows', 'start', 'maxMiles']) $('#plan')[k].value = t.params[k];
   $('#result').style.display = 'block';
   const T = t.totals;
+  const a = t.artist, others = a.candidates.filter(c => c.id !== a.id);
+  $('#who').innerHTML = `${a.image ? `<img src="${esc(a.image)}" alt="">` : ''}<div><b>${esc(a.name)}</b>${a.genres.length ? ` <small class="meta">${esc(a.genres.join(', '))}</small>` : ''}
+    <p>${esc(a.blurb || '')}</p>${others.length ? `<details><summary>Not this one?</summary>${cands(others)}</details>` : ''}</div>`;
   $('#sum').innerHTML = T.shows
-    ? `<span><b>${T.shows}</b> shows</span><span><b>${T.days}</b> days</span><span><b>${n(T.miles)}</b> road miles, about</span><span>${esc(t.artist.name)} from ${esc(t.home.name)}</span>`
-    : `<span>No fan city fits within two driving days of ${esc(t.home.name)}. Try more miles a day.</span>`;
+    ? `<span><b>${T.shows}</b> shows</span><span><b>${T.days}</b> days</span><span>about <b>${n(T.miles)}</b> road miles</span><span>${esc(a.name)} from ${esc(t.home.name)}</span>`
+    : `<span>None of the top cities fits within two driving days of ${esc(t.home.name)}. Try more miles a day.</span>`;
   drawMap(t);
+  hood(t.trace);
   $('#aud').innerHTML = audience(t.audience);
+  $('#partners').innerHTML = t.partners.map(x => `<li>${esc(x.name)}</li>`).join('') || '<li>None found</li>';
   $('#brands').innerHTML = t.brands.map(b => `<li>${esc(b.name)}</li>`).join('') || '<li>None found</li>';
   $('#pods').innerHTML = t.podcasts.map(p => `<li>${esc(p.name)}</li>`).join('') || '<li>None found</li>';
   $('#stops').innerHTML = t.stops.map((s, i) => `
@@ -218,11 +280,11 @@ function render(t) {
       <div class="num">${i + 1}</div>
       <div>
         <h3>${esc(day(s.date))} · ${esc(s.name)}</h3>
-        <p class="meta">Fan rank ${s.rank} of ${t.cities.length} US cities · ${s.legMiles ? `${n(s.legMiles)} mi drive, about ${s.driveHours} h` : 'no drive'}</p>
+        <p class="meta"><span title="${TIP.affinity}">Qloo affinity ${s.affinity.toFixed(2)}</span> · <span title="${TIP.rank}">Fanroute rank ${s.rank} of ${t.cities.length} cities</span> · ${s.legMiles ? `${n(s.legMiles)} mi drive, about ${s.driveHours} h` : 'no drive'}</p>
         <div class="cols">
-          <div><h4>Venues</h4>${list(s.venues, v => `${esc(v.name)}${v.address ? `<small>${esc(v.address)}</small>` : ''}`)}</div>
-          <div><h4>Support acts</h4>${list(s.coBill, a => esc(a.name))}</div>
-          <div><h4>Poster spots</h4>${list(s.spots, x => `${esc(x.name)}${x.address ? `<small>${esc(x.address)}</small>` : ''}`)}</div>
+          ${col('Rooms', HOW.rooms, i, list(s.venues, place))}
+          ${col('Local acts this audience also listens to', HOW.acts, i, list(s.coBill, x => esc(x.name)))}
+          ${col('Poster spots', HOW.spots, i, list(s.spots, place))}
         </div>
         <div class="acts">
           <button class="ghost" data-pitch="${i}">Copy pitch email</button>
@@ -233,6 +295,38 @@ function render(t) {
 }
 
 const list = (xs, f) => xs?.length ? `<ul>${xs.map(x => `<li>${f(x)}</li>`).join('')}</ul>` : '<small>None found</small>';
+
+const TIP = {
+  affinity: "Qloo affinity: how strongly this city's aggregate taste profile over-indexes for the artist, 0 to 1, averaged over Qloo heatmap cells around the city center.",
+  rank: 'Fanroute rank: our ordering of the 138 touring cities by Qloo affinity weighted by Qloo popularity, so bigger markets rank higher. Not a Qloo output.',
+};
+const HOW = {
+  rooms: 'Qloo places near the center tagged as live music rooms, arenas and stadiums excluded, ranked by affinity to the artist',
+  acts: 'Qloo artists with a location signal on this city, same genres, capped at your popularity, each act shown once per tour',
+  spots: 'Record stores, cafes and bookshops this audience over-indexes for',
+};
+// Column notes show in full on the first stop and as a tooltip on the rest.
+const col = (title, how, i, body) => `<div><h4 title="${esc(how)}">${title}</h4>${i ? '' : `<small>${esc(how)}</small>`}${body}</div>`;
+
+const web = u => (/^https?:\/\//i.test(u || '') ? u : '');
+const place = v => `${web(v.url) ? `<a href="${esc(v.url)}" target="_blank" rel="noopener">${esc(v.name)}</a>` : esc(v.name)}${v.rating ? ` <small class="inline">rated ${v.rating.toFixed(1)}</small>` : ''}${v.blurb ? `<small>${esc(v.blurb)}</small>` : ''}${v.address ? `<small>${esc(v.address)}</small>` : ''}`;
+
+// Every Qloo request the plan made, with the long values shortened.
+const NOTE = `/search finds the artist (five candidates, so the page can ask which one) and the home city (US results only).
+The heatmap asks for small boxes around each touring city, 50 per MULTIPOLYGON, because Qloo's city boundaries return errors and the full US grid is 2.3 MB.
+Rooms join four live music tags with operator.filter.tags=union and drop arenas, stadiums, fairgrounds, farms and sports bars with filter.exclude.tags.
+Local acts filter on the headliner's own genre tags, cap filter.popularity.max at the headliner's popularity, and add signal.location for the city.
+Acts everywhere, brands, podcasts and demographics use the artist as the only signal.`;
+const param = ([k, v]) => {
+  v = String(v);
+  const short = v.startsWith('MULTIPOLYGON') ? `MULTIPOLYGON(${v.split('((').length - 1} boxes)` : v.length > 60 ? `${v.slice(0, 57)}...` : v;
+  return `${esc(k)}=<span title="${esc(v.length > 60 ? v : '')}">${esc(short)}</span>`;
+};
+function hood(trace = []) {
+  $('#hood').innerHTML = `<summary>Under the hood: ${trace.length} Qloo requests</summary>
+    <p class="meta">${esc(NOTE).replace(/\n/g, '<br>')}</p>
+    <ol>${trace.map(r => `<li><code>GET ${esc(r.path)} ${Object.entries(r.params).map(param).join(' ')}</code>${r.cached ? ' <small class="meta">(cached)</small>' : ''}</li>`).join('')}</ol>`;
+}
 
 function audience(a) {
   if (!a) return '<small>No audience data.</small>';
@@ -254,7 +348,7 @@ function drawMap(t) {
   const top = t.cities[0]?.score || 1;
   for (const c of t.cities) {
     L.circleMarker([c.lat, c.lon], { radius: 4 + 14 * c.score / top, color: accent, weight: 1, fillOpacity: 0.15 })
-      .bindTooltip(`${esc(c.name)}: fan rank ${c.rank}`).addTo(layer);
+      .bindTooltip(`${esc(c.name)} · Qloo affinity ${c.affinity.toFixed(2)} · rank ${c.rank}`).addTo(layer);
   }
   const path = [t.home, ...t.stops, t.home].map(s => [s.lat, s.lon]);
   L.polyline(path, { color: accent, weight: 3, dashArray: '6 6' }).addTo(layer);
@@ -267,16 +361,16 @@ function drawMap(t) {
 
 function pitch(t, s) {
   const v = s.venues?.[0]?.name || 'your room';
-  const support = s.coBill?.[0] ? ` If you want a local support act, fans here also love ${s.coBill[0].name}.` : '';
+  const support = s.coBill?.[0] ? `\n\nIf a local opener helps, Qloo shows this audience also listens to ${s.coBill[0].name}.` : '';
   return `Subject: Date request for ${t.artist.name}, ${day(s.date)}
 
 Hi ${v} team,
 
 I'm routing a ${t.stops.length}-date run for ${t.artist.name} and would love to play ${v} on ${day(s.date)}. A day either side works too.
 
-We picked ${s.name} on purpose: in Qloo's taste data it ranks ${s.rank} of ${t.cities.length} US cities for ${t.artist.name} fans.${support}
+We picked ${s.name} on purpose. In Qloo's taste data ${s.name} is one of the US cities where the audience for ${t.artist.name} over-indexes most (our planner ranks it ${s.rank} of the ${t.cities.length} touring cities we checked). That is taste data, not a draw estimate, so I'm happy to send streaming numbers and past attendance too.${support}
 
-Happy to send streaming numbers, past draws and a rider. Thanks for taking a look.
+Thanks for taking a look.
 
 ${t.artist.name}`;
 }

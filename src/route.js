@@ -1,4 +1,4 @@
-// Tour routing: pick the fan cities a van can reach and put them in driving order.
+// Tour routing: pick the ranked cities a van can reach and put them in driving order.
 const EARTH_MILES = 3958.8;
 const ROAD = 1.2; // road miles per straight-line mile, rough US average
 const RADIUS = 50; // venue radius clauses usually bar a second show within about 50 miles
@@ -12,7 +12,7 @@ export function miles(a, b) {
 
 export const roadMiles = (a, b) => miles(a, b) * ROAD;
 
-// Cheapest insertion by value: each step adds the city with the best fan score per added mile,
+// Cheapest insertion by value: each step adds the city with the best score per added mile,
 // keeping every leg (the drive out and back home included) within two driving days.
 // ponytail: greedy + 2-opt, not optimal; fine for 20 stops, use a solver if tours get much longer.
 export function route(cities, home, { shows = 8, maxMiles = 350 } = {}) {

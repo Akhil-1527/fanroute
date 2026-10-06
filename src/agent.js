@@ -5,15 +5,17 @@ import { miles } from './route.js';
 
 const MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 
-const SYSTEM = `You help independent musicians plan US tours. Every fact about fans, cities, venues, artists and brands
-must come from the current tour or a tool result; never make one up. To build or change the tour, call plan_tour with
-the full settings, keeping the current ones unless the user asks for a change. To look at a city that is not on the
-tour, call check_city. Reply in two to four short, plain sentences. Do not use em dashes.`;
+const SYSTEM = `You help independent musicians plan US tours. Every fact about audiences, cities, venues, artists and
+brands must come from the current tour or a tool result; never make one up. To build or change the tour, call plan_tour
+with the full settings, keeping the current ones unless the user asks for a change. To look at a city that is not on
+the tour, call check_city. Qloo numbers are aggregate taste affinity, never a count of fans, a probability, or a cause.
+Say "over-indexes", not "has fans". If a tool returns needs_choice, ask the user which one they meant in one sentence,
+listing the names; do not guess. Reply in two to four short, plain sentences. Do not use em dashes.`;
 
 const TOOLS = [
   {
     name: 'plan_tour',
-    description: 'Build or rebuild the tour. Picks US cities where fans of the artist over-index, routes them for a van, and finds venues, support acts and poster spots.',
+    description: 'Build or rebuild the tour. Picks US cities where the artist\'s audience over-indexes, routes them for a van, and finds rooms, local acts and poster spots.',
     parameters: {
       type: 'object',
       properties: {
@@ -29,20 +31,22 @@ const TOOLS = [
   },
   {
     name: 'check_city',
-    description: 'How one city ranks for the artist, plus its best venues and support acts.',
+    description: 'How one city ranks for the artist, plus its best rooms and local acts.',
     parameters: { type: 'object', properties: { city: { type: 'string' } }, required: ['city'] },
   },
 ];
 
-// What the model sees of a tour: names and ranks, not raw API payloads.
+// What the model sees of a tour: names and numbers, not raw API payloads.
+const affinity = c => Number(c.affinity.toFixed(2));
 export const brief = t => JSON.stringify({
   artist: t.artist.name,
   settings: t.params,
   totals: t.totals,
   stops: t.stops.map(s => ({
-    city: s.name, date: s.date, fanRank: `${s.rank} of ${t.cities.length}`, driveMiles: s.legMiles,
-    venues: s.venues.map(v => v.name), support: s.coBill.map(a => a.name), posters: s.spots.map(x => x.name),
+    city: s.name, date: s.date, qlooAffinity: affinity(s), fanrouteRank: `${s.rank} of ${t.cities.length}`, driveMiles: s.legMiles,
+    rooms: s.venues.map(v => v.name), localActs: s.coBill.map(a => a.name), posterSpots: s.spots.map(x => x.name),
   })),
+  actsThisAudienceLovesEverywhere: t.partners.map(a => a.name),
   nextBestCities: t.cities.filter(c => !t.stops.some(s => s.name === c.name)).slice(0, 5).map(c => c.name),
   brands: t.brands.map(b => b.name),
   podcasts: t.podcasts.map(p => p.name),
@@ -50,16 +54,19 @@ export const brief = t => JSON.stringify({
 });
 
 async function checkCity(env, params, city) {
-  const [artist, c] = await Promise.all([Q.findArtist(env, params.artist), Q.findCity(env, city)]);
+  const [artist, c] = await Promise.all([Q.findArtist(env, params.artist, params.artistId), Q.findCity(env, city)]);
   if (!artist || !c) return { error: 'Artist or city not found.' };
-  const fans = (await Q.fanCities(env, artist.id)).sort((a, b) => b.score - a.score);
-  const i = fans.findIndex(f => miles(f, c) < 50);
-  const { venues, coBill: support } = await Q.stopDetails(env, artist, c);
+  const { cities } = await Q.fanCities(env, artist.id);
+  cities.sort((a, b) => b.score - a.score);
+  const i = cities.findIndex(f => miles(f, c) < 50);
+  const { venues, coBill: acts } = await Q.stopDetails(env, artist, c);
   return {
     city: c.name,
-    fanRank: i < 0 ? `not in the top ${fans.length} US cities` : `${i + 1} of ${fans.length}`,
-    venues: venues.map(v => v.name),
-    support: support.map(a => a.name),
+    ...(i < 0
+      ? { fanrouteRank: `not one of the ${cities.length} touring cities Fanroute checks` }
+      : { qlooAffinity: affinity(cities[i]), fanrouteRank: `${i + 1} of ${cities.length}` }),
+    rooms: venues.map(v => v.name),
+    localActs: acts.slice(0, 3).map(a => a.name),
   };
 }
 
@@ -67,8 +74,9 @@ const args = a => (typeof a === 'string' ? JSON.parse(a || '{}') : a || {});
 
 export async function ask(env, { messages = [], params = {}, context = '' }) {
   if (!env.AI) return { reply: 'Chat is not switched on here. The form above still plans tours.' };
+  params = clean(params);
   const msgs = [
-    { role: 'system', content: `${SYSTEM}\nToday is ${new Date().toISOString().slice(0, 10)}.\nCurrent settings: ${JSON.stringify(clean(params))}\nCurrent tour: ${String(context).slice(0, 6000) || 'none yet'}` },
+    { role: 'system', content: `${SYSTEM}\nToday is ${new Date().toISOString().slice(0, 10)}.\nCurrent settings: ${JSON.stringify(params)}\nCurrent tour: ${String(context).slice(0, 6000) || 'none yet'}` },
     ...messages.slice(-10).map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: String(m.content).slice(0, 2000) })),
   ];
   let plan;
@@ -81,10 +89,15 @@ export async function ask(env, { messages = [], params = {}, context = '' }) {
       let out;
       try {
         if (call.name === 'plan_tour') {
-          plan = await planTour(env, { ...params, ...args(call.arguments) });
-          params = plan.params;
-          plan.brief = brief(plan);
-          out = plan.brief;
+          const next = await planTour(env, { ...params, ...args(call.arguments) });
+          if (next.choose) {
+            out = { needs_choice: next.choose.map(c => ({ name: c.name, about: c.blurb })) };
+          } else {
+            plan = next;
+            params = plan.params;
+            plan.brief = brief(plan);
+            out = plan.brief;
+          }
         } else if (call.name === 'check_city') {
           out = await checkCity(env, params, args(call.arguments).city);
         } else {

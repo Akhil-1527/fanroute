@@ -4,6 +4,6 @@
   "type": "module",
   "scripts": {
     "dev": "node dev.js",
-    "check": "node src/route.check.js"
+    "check": "node src/route.check.js && node src/plan.check.js"
   }
 }

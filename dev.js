@@ -35,13 +35,21 @@ if (!env.QLOO_API_KEY) {
     const u = new URL(url), p = Object.fromEntries(u.searchParams);
     if (u.pathname === '/search' && p.types.includes('locality')) {
       const c = CITIES.find(([n]) => n.toLowerCase().startsWith(p.query.toLowerCase().split(',')[0].trim()));
-      return { results: c ? [{ name: c[0], location: { lat: c[1], lon: c[2] } }] : [] };
+      const [city, st] = c?.[0].split(', ') || [];
+      return { results: c ? [{ name: city, disambiguation: `${city}, Sample County, ${st}, United States of America`, location: { lat: c[1], lon: c[2] } }] : [] };
     }
-    if (u.pathname === '/search') return { results: [{ entity_id: `artist-${p.query}`, name: p.query, popularity: 0.7 }] };
+    if (u.pathname === '/search') {
+      // A query with "band" in it gets a wrong first match, so the "which one?" picker can be tried offline.
+      const names = /band/i.test(p.query) ? ['Band of Horses', 'The Band', p.query, 'Steve Miller Band', 'Dave Matthews Band'] : [p.query, `${p.query} 13`];
+      return { results: names.map((name, i) => ({
+        entity_id: `0000000${i}-FA4E-0000-0000-${String(name.length).padStart(12, '0')}`, name, popularity: 0.9 - i / 10,
+        tags: [{ name: 'Indie Rock', tag_id: 'urn:tag:genre:indie_rock' }], properties: { short_description: `Sample description of ${name}.` },
+      })) };
+    }
     const type = p['filter.type'];
     if (type === 'urn:heatmap') {
       return { results: { heatmap: CITIES.map(([name, latitude, longitude]) => ({
-        location: { latitude: latitude + 0.05, longitude: longitude - 0.05 },
+        location: { latitude: latitude + 0.01, longitude: longitude - 0.01 },
         query: { affinity: rand(name + p['signal.interests.entities']), popularity: rand(name) },
       })) } };
     }
@@ -50,10 +58,12 @@ if (!env.QLOO_API_KEY) {
     }
     const kind = type.split(':').pop();
     const where = p['filter.location'] || p['signal.location'] || '';
-    return { results: { entities: [1, 2, 3].map(i => ({
-      entity_id: `${kind}-${i}`, name: `Sample ${kind} ${i}${where ? ` near ${where.slice(6, 16)}` : ''}`,
-      popularity: rand(kind + i + where), query: { affinity: 1 - i / 10 }, properties: { address: `${i}00 Main St` },
-    })) } };
+    // Artists repeat across cities on purpose so the planner's one-stop-per-act rule shows.
+    const name = i => (kind === 'artist' ? `Sample act ${Math.floor(rand(where + i) * 15)}` : `Sample ${kind} ${i}${where ? ` near ${where.slice(6, 16)}` : ''}`);
+    return { results: { entities: Array.from({ length: Math.min(Number(p.take) || 3, 8) }, (_, i) => ({
+      entity_id: `${kind}-${name(i)}`, name: name(i), popularity: rand(kind + i + where), query: { affinity: rand(where + i) },
+      properties: { address: `${i + 1}00 Main St`, description: `Sample ${kind} description.`, business_rating: 4.2, website: 'https://example.com/' },
+    })).sort((a, b) => b.query.affinity - a.query.affinity) } };
   };
   const realFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => (String(url).startsWith(env.QLOO_API_URL || 'https://hackathon.api.qloo.com')

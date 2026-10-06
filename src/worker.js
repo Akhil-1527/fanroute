@@ -1,7 +1,7 @@
 import { ask, brief } from './agent.js';
 import { planTour } from './plan.js';
 
-// Streams one JSON object per line: {step} while working, then {plan} or {error}.
+// Streams one JSON object per line: {step} while working, then {plan}, {choose} (which artist did you mean) or {error}.
 function streamPlan(env, params) {
   const { readable, writable } = new TransformStream();
   const out = writable.getWriter();
@@ -9,8 +9,12 @@ function streamPlan(env, params) {
   (async () => {
     try {
       const plan = await planTour(env, params, step => send({ step }));
-      plan.brief = brief(plan);
-      await send({ plan });
+      if (plan.choose) {
+        await send(plan);
+      } else {
+        plan.brief = brief(plan);
+        await send({ plan });
+      }
     } catch (e) {
       await send({ error: e.message });
     }
