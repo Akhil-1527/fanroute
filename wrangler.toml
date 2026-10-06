@@ -1,5 +1,5 @@
 name = "fanroute"
-main = "src/worker.js"
+main = "src/index.js"
 compatibility_date = "2026-09-01"
 
 [assets]
@@ -10,3 +10,10 @@ binding = "ASSETS"
 binding = "AI"
 
 # The Qloo key is a secret, not a var: npx wrangler secret put QLOO_API_KEY
+# Same for the server URL if Qloo gave one: npx wrangler secret put QLOO_API_URL
+
+# Heavy Qloo steps call back into this Worker so each gets its own CPU budget (Split in src/index.js).
+[[services]]
+binding = "SPLIT"
+service = "fanroute"
+entrypoint = "Split"

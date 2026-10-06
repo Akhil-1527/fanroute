@@ -54,7 +54,7 @@ async function checkCity(env, params, city) {
   if (!artist || !c) return { error: 'Artist or city not found.' };
   const fans = (await Q.fanCities(env, artist.id)).sort((a, b) => b.score - a.score);
   const i = fans.findIndex(f => miles(f, c) < 50);
-  const [venues, support] = await Promise.all([Q.venues(env, artist.id, c), Q.coBill(env, artist.id, c)]);
+  const { venues, coBill: support } = await Q.stopDetails(env, artist, c);
   return {
     city: c.name,
     fanRank: i < 0 ? `not in the top ${fans.length} US cities` : `${i + 1} of ${fans.length}`,

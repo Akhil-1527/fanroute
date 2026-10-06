@@ -7,7 +7,8 @@ const DAY = 864e5;
 export const clean = p => ({
   artist: String(p.artist ?? '').trim().slice(0, 100),
   home: String(p.home ?? '').trim().slice(0, 100),
-  shows: Math.min(20, Math.max(1, Math.round(p.shows) || 8)),
+  // 14 shows keeps a plan near 50 Qloo calls, the Workers free-plan subrequest cap.
+  shows: Math.min(14, Math.max(1, Math.round(p.shows) || 8)),
   maxMiles: Math.min(800, Math.max(100, Math.round(p.maxMiles) || 350)),
   start: /^\d{4}-\d{2}-\d{2}$/.test(p.start) ? p.start : new Date(Date.now() + 60 * DAY).toISOString().slice(0, 10),
   skip: Array.isArray(p.skip) ? p.skip.slice(0, 30).map(s => String(s).slice(0, 100)) : [],
@@ -28,15 +29,17 @@ export async function planTour(env, params, step = () => {}) {
   if (!cities.length) throw new Error(`Qloo has no city data for ${artist.name} yet.`);
 
   step(`Routing ${p.shows} dates from ${home.name}, at most ${p.maxMiles} miles a day`);
-  const open = cities.filter(c => !p.skip.includes(c.name));
+  // Real affinity spreads are narrow, so short drives would win every time. Only the top third of cities are
+  // candidates; the router then trades fan score against miles inside that set.
+  const open = cities.filter(c => c.rank <= Math.ceil(cities.length / 3) && !p.skip.includes(c.name));
   const stops = schedule(route(open, home, p), home, p.start, p.maxMiles);
+  if (stops.length < p.shows) step(`Only ${stops.length} of the top cities fit within two driving days of each other`);
 
-  step(`Finding venues, support acts and poster spots in ${stops.length} cities`);
-  await Promise.all(stops.map(async s => {
-    [s.venues, s.coBill, s.spots] = await Promise.all([
-      Q.venues(env, artist.id, s), Q.coBill(env, artist.id, s), Q.posterSpots(env, artist.id, s),
-    ]);
-  }));
+  // One stop at a time keeps the three calls per stop under the key's 5 calls a second.
+  for (const [i, s] of stops.entries()) {
+    step(`Finding venues, support acts and poster spots in ${s.name} (${i + 1} of ${stops.length})`);
+    Object.assign(s, await Q.stopDetails(env, artist, s));
+  }
 
   step('Reading who the fans are and which brands they share');
   const [audience, brands, podcasts] = await Promise.all([

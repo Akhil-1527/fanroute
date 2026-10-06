@@ -24,7 +24,7 @@ Needs Node 20 or newer. No packages to install.
 
 ```
 node dev.js                          # fake data, no key needed
-QLOO_API_KEY=your-key node dev.js    # real Qloo data
+QLOO_API_KEY=your-key QLOO_API_URL=your-url node dev.js    # real Qloo data
 npm run check                        # routing checks
 ```
 
@@ -36,6 +36,7 @@ Runs on the Cloudflare Workers free tier (static page, one Worker, Workers AI).
 
 ```
 npx wrangler secret put QLOO_API_KEY
+npx wrangler secret put QLOO_API_URL
 npx wrangler deploy
 ```
 
