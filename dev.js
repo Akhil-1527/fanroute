@@ -11,7 +11,7 @@ import { CITIES } from './src/cities.js';
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png' };
 // Key and URL can also sit in .dev.vars (gitignored), the same file wrangler reads: QLOO_API_KEY=... QLOO_API_URL=...
 const devVars = (() => { try { return readFileSync('.dev.vars', 'utf8'); } catch { return ''; } })();
-const devVar = k => process.env[k] || new RegExp(`^${k}\\s*=\\s*"?([^"\\s]+)"?`, 'm').exec(devVars)?.[1];
+const devVar = k => process.env[k] || new RegExp(`^${k}[ \\t]*=[ \\t]*"?([^"\\s]+)"?`, 'm').exec(devVars)?.[1];
 
 const env = {
   QLOO_API_KEY: devVar('QLOO_API_KEY'),

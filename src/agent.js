@@ -10,7 +10,8 @@ brands must come from the current tour or a tool result; never make one up. To b
 with the full settings, keeping the current ones unless the user asks for a change. To look at a city that is not on
 the tour, call check_city. Qloo numbers are aggregate taste affinity, never a count of fans, a probability, or a cause.
 Say "over-indexes", not "has fans". If a tool returns needs_choice, ask the user which one they meant in one sentence,
-listing the names; do not guess. Reply in two to four short, plain sentences. Do not use em dashes.`;
+listing the names; do not guess. Only describe changes you have made; to suggest one, ask whether to make it. Reply in
+two to four short, plain sentences. Never mention tool names. Do not use em dashes.`;
 
 const TOOLS = [
   {
