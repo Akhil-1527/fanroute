@@ -66,8 +66,8 @@ key, which only ever travels in the `X-Api-Key` header.
      music_venue setting tag, joined with `operator.filter.tags=union`, `filter.exclude.tags` = arena, stadium,
      amphitheater, fairground, farm, sports bar, museum, opera company, visitor center and a few more, within 30 km,
      ranked by affinity to the artist. A description check then drops anything described as an arena or stated at
-     2,500 seats or more. The check reads the description, never the name: Hardcore Stadium in Cambridge is a 100-cap
-     DIY room and stays.
+     2,500 seats or more. The check reads the description, never the name: Hardcore Stadium in Cambridge is a small DIY
+     punk room and stays.
    - Local acts: `filter.type=urn:entity:artist`, `signal.location=POINT(lon lat)`, `filter.tags` = the headliner's
      genre tag ids with `operator.filter.tags=union`, `filter.popularity.max` = the headliner's popularity, `take=8`.
      Before the genre filter, Trixie Mattel showed up as an opener for MJ Lenderman; after it, Lydia Loveless, SUSTO and
