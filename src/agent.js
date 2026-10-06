@@ -72,8 +72,10 @@ export async function ask(env, { messages = [], params = {}, context = '' }) {
     ...messages.slice(-10).map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: String(m.content).slice(0, 2000) })),
   ];
   let plan;
-  for (let turn = 0; turn < 4; turn++) {
-    const r = await env.AI.run(MODEL, { messages: msgs, tools: TOOLS });
+  // Llama on Workers AI keeps calling tools for as long as they are offered, so only the first turn gets them.
+  // It can call several at once there; the second turn has to answer from the results.
+  for (let turn = 0; turn < 2; turn++) {
+    const r = await env.AI.run(MODEL, { messages: msgs, ...(turn === 0 && { tools: TOOLS }) });
     if (!r.tool_calls?.length) return { reply: r.response, plan };
     for (const call of r.tool_calls) {
       let out;

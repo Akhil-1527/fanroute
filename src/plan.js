@@ -31,7 +31,10 @@ export async function planTour(env, params, step = () => {}) {
   step(`Routing ${p.shows} dates from ${home.name}, at most ${p.maxMiles} miles a day`);
   // Real affinity spreads are narrow, so short drives would win every time. Only the top third of cities are
   // candidates; the router then trades fan score against miles inside that set.
-  const open = cities.filter(c => c.rank <= Math.ceil(cities.length / 3) && !p.skip.includes(c.name));
+  // "Boston" from the chat should drop "Boston, MA".
+  const skip = p.skip.map(x => x.toLowerCase().split(',')[0].trim()).filter(Boolean);
+  const skipped = c => skip.some(x => c.name.toLowerCase().startsWith(x));
+  const open = cities.filter(c => c.rank <= Math.ceil(cities.length / 3) && !skipped(c));
   const stops = schedule(route(open, home, p), home, p.start, p.maxMiles);
   if (stops.length < p.shows) step(`Only ${stops.length} of the top cities fit within two driving days of each other`);
 
