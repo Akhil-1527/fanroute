@@ -1,7 +1,7 @@
 // Run: node src/plan.check.js
 import assert from 'node:assert/strict';
 import { clean, dedupe, needsConfirm } from './plan.js';
-import { bigRoom, spellState, usCity } from './qloo.js';
+import { bigRoom, offScene, spellState, usCity } from './qloo.js';
 
 const A = (name, id = name) => ({ name, id });
 assert.equal(needsConfirm('Wednesday', [A('Wednesday'), A('Wednesday 13')]), false);
@@ -77,3 +77,11 @@ assert.equal(spellState('Austin'), 'Austin');
 assert.equal(spellState('Boise, Idaho'), 'Boise, Idaho');
 assert.equal(spellState('St. Louis, MO.'), 'St. Louis, Missouri');
 console.log('plan ok');
+
+const off = offScene(['urn:tag:genre:alt_country', 'urn:tag:subgenre:qloo:americana']).split(',');
+assert.ok(off.includes('urn:tag:genre:qloo:jam_band') && off.includes('urn:tag:subgenre:qloo:jam_band'));
+assert.ok(off.includes('urn:tag:genre:music:contemporary_country'));
+assert.equal(off.length, 18);
+const countryAct = offScene(['urn:tag:genre:contemporary_country', 'urn:tag:subgenre:qloo:country_pop']).split(',');
+assert.ok(!countryAct.some(t => /contemporary_country|country_pop/.test(t)), 'a country headliner keeps country peers');
+assert.ok(!offScene(['urn:tag:genre:qloo:classic_rock']).includes('classic_rock'));

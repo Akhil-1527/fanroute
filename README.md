@@ -32,7 +32,7 @@ travelling-salesman loop.
 | `/v2/insights`, `filter.type=urn:heatmap` | Where does this artist's audience over-index? | Heatmap cells over small boxes around each touring city, three calls cover all 138 |
 | `/v2/insights`, `urn:entity:place`, live music tags | Which rooms in this city fit this artist? | Four venue tags with `operator.filter.tags=union`, big rooms removed with `filter.exclude.tags` |
 | `/v2/insights`, `urn:entity:place`, shop tags | Where do the posters go? | Record stores, cafes and bookshops near the center, ranked by affinity |
-| `/v2/insights`, `urn:entity:artist`, `signal.location` | Who could open the show locally? | The headliner's genre tags, a popularity cap, and the city as a location signal |
+| `/v2/insights`, `urn:entity:artist`, `signal.location` | Who could open the show locally? | The headliner's genre tags, mainstream formats excluded, a popularity cap, and the city as a location signal |
 | `/v2/insights`, `urn:entity:artist`, no location | Who could share a package tour? | Same call without the location signal: acts this audience likes everywhere |
 | `/v2/insights`, `urn:demographics`, `urn:entity:brand`, `urn:entity:podcast` | Who is the audience, who might sponsor, where to pitch press? | The artist as the only signal |
 
@@ -60,7 +60,8 @@ key, which only ever travels in the `X-Api-Key` header.
 4. **Route.** Only the top third of ranked cities are candidates, because real affinity spreads are narrow and short
    drives would otherwise win every time. Cities are added by score per added mile, every leg (including the drive home)
    stays within two driving days, no two shows are within 50 miles (the usual radius clause), and a 2-opt pass uncrosses
-   the loop (`src/route.js`).
+   the loop (`src/route.js`). Dropping a city, from its card or in the chat, keeps the other stops and fills the gap
+   with the best city that fits.
 5. **Fill each stop.** Three requests per stop:
    - Rooms: `filter.type=urn:entity:place`, `filter.tags` = live_music_venue, live_music_bar, concert_hall and the
      music_venue setting tag, joined with `operator.filter.tags=union`, `filter.exclude.tags` = arena, stadium,
@@ -71,8 +72,10 @@ key, which only ever travels in the `X-Api-Key` header.
    - Local acts: `filter.type=urn:entity:artist`, `signal.location=POINT(lon lat)`, `filter.tags` = the headliner's
      genre tag ids with `operator.filter.tags=union`, `filter.popularity.max` = the headliner's popularity, `take=8`.
      Before the genre filter, Trixie Mattel showed up as an opener for MJ Lenderman; after it, Lydia Loveless, SUSTO and
-     Palehound did. Across the tour each act goes to the one stop where it scores highest, so the same name doesn't
-     fill every stop (Kim Gordon used to).
+     Palehound did. A union matches on any one shared genre, and broad ones like americana let in Riley Green, Dead &
+     Company and the Hadestown cast, so `filter.exclude.tags` removes jam band, contemporary country, country pop,
+     classic rock, musical theatre and Broadway unless the headliner carries that genre too. Across the tour each act
+     goes to the one stop where it scores highest, so the same name doesn't fill every stop (Kim Gordon used to).
    - Poster spots: record_store, coffee_shop and book_store tags within 15 km.
 6. **Profile the audience.** Demographics, brands, podcasts, and the local-acts request without a location signal,
    which lists acts this audience likes everywhere (for MJ Lenderman: Wednesday, This Is Lorelei, Ratboys, Feeble Little
@@ -128,11 +131,14 @@ Set `QLOO_API_URL` the same way only if Qloo gave you a server other than `https
   big room with a plain description can still slip through, and some places that host music but aren't really venues
   (a lounge, a cafe) show up.
 - Qloo popularity is a percentile, so the cap on local acts only removes acts clearly bigger than the headliner. A
-  famous act at the same percentile can still appear.
+  famous act at the same percentile can still appear, and so can a famous band member listed as a separate, less
+  popular entity (Florence Welch, Ezra Koenig).
+- The list of excluded mainstream genres is short and hand-picked, so an act from another big format can still come
+  through on one broad shared genre.
 - An artist with no genre tags in Qloo gets local acts without the genre filter.
 - 138 cities in the contiguous US. A city not on the list can't be routed, though the chat agent can still check it.
 - Road miles are straight-line miles times 1.2, so drive times are rough.
-- Dropping a city replans the whole loop rather than patching one leg.
+- If a shorter daily drive limit no longer fits the kept stops, the loop is planned again from scratch.
 - The chat agent only states what its tools return, but a language model can still misread a result.
 - Results are cached for 24 hours, and the hackathon key has a monthly quota.
 

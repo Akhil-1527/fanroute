@@ -75,7 +75,11 @@ const args = a => (typeof a === 'string' ? JSON.parse(a || '{}') : a || {});
 
 export async function ask(env, { messages = [], params = {}, context = '' }) {
   if (!env.AI) return { reply: 'Chat is not switched on here. The form above still plans tours.' };
-  params = clean(params);
+  // The page sends the current stops as keep. They stay out of the prompt and only seed a replan of the same artist
+  // from the same home, so "drop Richmond" changes one city instead of the whole loop.
+  let { keep, ...settings } = clean(params);
+  params = settings;
+  const same = (a, k) => !a[k] || String(a[k]).toLowerCase().split(',')[0].trim() === params[k].toLowerCase().split(',')[0].trim();
   const msgs = [
     { role: 'system', content: `${SYSTEM}\nToday is ${new Date().toISOString().slice(0, 10)}.\nCurrent settings: ${JSON.stringify(params)}\nCurrent tour: ${String(context).slice(0, 6000) || 'none yet'}` },
     ...messages.slice(-10).map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: String(m.content).slice(0, 2000) })),
@@ -90,12 +94,14 @@ export async function ask(env, { messages = [], params = {}, context = '' }) {
       let out;
       try {
         if (call.name === 'plan_tour') {
-          const next = await planTour(env, { ...params, ...args(call.arguments) });
+          const a = args(call.arguments);
+          const next = await planTour(env, { ...params, ...a, keep: same(a, 'artist') && same(a, 'home') ? keep : [] });
           if (next.choose) {
             out = { needs_choice: next.choose.map(c => ({ name: c.name, about: c.blurb })) };
           } else {
             plan = next;
             params = plan.params;
+            keep = plan.stops.map(s => s.name);
             plan.brief = brief(plan);
             out = plan.brief;
           }

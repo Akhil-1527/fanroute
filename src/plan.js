@@ -15,6 +15,8 @@ export const clean = p => ({
   maxMiles: Math.min(800, Math.max(100, Math.round(p.maxMiles) || 350)),
   start: /^\d{4}-\d{2}-\d{2}$/.test(p.start) ? p.start : new Date(Date.now() + 60 * DAY).toISOString().slice(0, 10),
   skip: Array.isArray(p.skip) ? p.skip.slice(0, 30).map(s => String(s).slice(0, 100)) : [],
+  // Stops of the plan being edited, by name, so an edit keeps them.
+  keep: Array.isArray(p.keep) ? p.keep.slice(0, 14).map(s => String(s).slice(0, 100)) : [],
 });
 
 const norm = s => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
@@ -65,7 +67,10 @@ export async function planTour(env, params, step = () => {}) {
   const skip = p.skip.map(x => x.toLowerCase().split(',')[0].trim()).filter(Boolean);
   const skipped = c => skip.some(x => c.name.toLowerCase().startsWith(x));
   const open = cities.filter(c => c.rank <= Math.ceil(cities.length / 3) && !skipped(c));
-  const stops = schedule(route(open, home, p), home, p.start, p.maxMiles);
+  // Kept stops beyond the show count lose the lowest scores first and keep their driving order.
+  const kept = p.keep.map(n => cities.find(c => c.name === n)).filter(c => c && !skipped(c));
+  const top = new Set([...kept].sort((a, b) => b.score - a.score).slice(0, p.shows));
+  const stops = schedule(route(open, home, { ...p, seed: kept.filter(c => top.has(c)) }), home, p.start, p.maxMiles);
   if (stops.length < p.shows) step(`Only ${stops.length} of the top cities fit within two driving days of each other`);
 
   // One stop at a time keeps the three calls per stop under the key's 5 calls a second.
@@ -84,7 +89,7 @@ export async function planTour(env, params, step = () => {}) {
   const driveHome = last ? Math.round(roadMiles(last, home)) : 0;
   return {
     // The matched id rides along so a chat edit replans the same artist without asking again.
-    params: { ...p, artistId: artist.id }, artist, home, cities, stops, audience, brands, podcasts, partners,
+    params: { ...p, artistId: artist.id, keep: undefined }, artist, home, cities, stops, audience, brands, podcasts, partners,
     trace: env.trace,
     totals: {
       shows: stops.length,

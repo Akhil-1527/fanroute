@@ -14,16 +14,22 @@ export const roadMiles = (a, b) => miles(a, b) * ROAD;
 
 // Cheapest insertion by value: each step adds the city with the best score per added mile,
 // keeping every leg (the drive out and back home included) within two driving days.
+// A seed (the stops of the plan being edited) stays in the loop and new cities are inserted around it, so dropping one
+// city doesn't reshuffle the rest. While a seeded leg is too long, cities only go into that gap; if nothing bridges
+// it, the loop starts over without the seed.
 // ponytail: greedy + 2-opt, not optimal; fine for 20 stops, use a solver if tours get much longer.
-export function route(cities, home, { shows = 8, maxMiles = 350 } = {}) {
+export function route(cities, home, { shows = 8, maxMiles = 350, seed = [] } = {}) {
   const maxLeg = 2 * maxMiles;
-  const tour = [home, home];
-  const left = cities.filter(c => c.score > 0);
+  const tour = [home, ...seed, home];
+  const left = cities.filter(c => c.score > 0 && !tour.includes(c));
+  const long = i => roadMiles(tour[i], tour[i + 1]) > maxLeg;
   while (tour.length - 2 < shows) {
     let best;
+    const gaps = tour.slice(1).map((_, i) => i).filter(long);
     for (const c of left) {
       if (tour.slice(1, -1).some(s => miles(s, c) < RADIUS)) continue;
       for (let i = 0; i < tour.length - 1; i++) {
+        if (gaps.length && !gaps.includes(i)) continue;
         const a = tour[i], b = tour[i + 1];
         if (roadMiles(a, c) > maxLeg || roadMiles(c, b) > maxLeg) continue;
         const added = roadMiles(a, c) + roadMiles(c, b) - roadMiles(a, b);
@@ -35,6 +41,7 @@ export function route(cities, home, { shows = 8, maxMiles = 350 } = {}) {
     tour.splice(best.i + 1, 0, best.c);
     left.splice(left.indexOf(best.c), 1);
   }
+  if (seed.length && tour.slice(1).some((_, i) => long(i))) return route(cities, home, { shows, maxMiles });
   twoOpt(tour, maxLeg);
   return tour.slice(1, -1);
 }

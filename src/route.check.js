@@ -27,4 +27,11 @@ assert.deepEqual(route([], home), []);
 const s = schedule([C('A', 39.74, -104.99), C('B', 41.88, -87.63)], home, '2026-11-01', 350);
 assert.deepEqual(s.map(x => x.date), ['2026-11-01', '2026-11-05'], 'about 1,100 road miles is four days at 350 a day');
 assert.equal(s[0].legMiles, 0);
+const drop = names(five)[2];
+const seeded = route(cities.filter(c => c.name !== drop), home, { shows: 5, maxMiles: 350, seed: five.filter(c => c.name !== drop) });
+assert.equal(seeded.length, 5);
+// 2-opt may still reverse a stretch, so the kept set is what must survive, not the exact order.
+assert.deepEqual(names(seeded).filter(n => names(five).includes(n)).sort(), names(five).filter(n => n !== drop).sort(), 'kept stops stay');
+const far = route(cities, home, { shows: 2, maxMiles: 350, seed: [cities[8]] });
+assert.ok(!names(far).includes('Boston'), 'a seed the day limit no longer allows is dropped');
 console.log('route ok:', names(five).join(', '));

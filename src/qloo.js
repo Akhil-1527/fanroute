@@ -159,7 +159,7 @@ export async function fanCities(env, id) {
 }
 
 // Tags miss a few big rooms, so the description gets a look too: arena words, or a stated size of 2,500 seats or more.
-// Never the name: Hardcore Stadium is a 100-cap DIY room.
+// Never the name: Hardcore Stadium in Cambridge is a small DIY punk room.
 export const bigRoom = d => /\b(arena|stadium|amphitheat|coliseum|fairground)/i.test(d || '') ||
   Number(/\b(\d{1,2},?\d{3})[- ](seat|capacity)/i.exec(d || '')?.[1].replace(',', '')) >= 2500;
 
@@ -172,10 +172,18 @@ export const venues = async (env, id, c) => (await insights(env, {
 // a support slot; without one, acts to share a package tour with. The popularity cap drops acts clearly bigger than
 // the headliner (Qloo popularity is a percentile, so it is a loose cap). Eight per stop so the planner can hand each
 // act to one stop only.
+// The genre filter matches on any shared genre, and broad ones (americana, folk rock) let in mainstream country, jam
+// bands and Broadway casts. Those formats are excluded unless the headliner carries them too. Qloo spells a genre three
+// ways on artist results, so each name goes out in all three (checked 2026-10-10: Riley Green, Dead & Company and
+// Hadestown dropped out for MJ Lenderman, Dayton's list didn't change).
+const OFF_SCENE = ['jam_band', 'contemporary_country', 'country_pop', 'musical_theatre', 'broadway', 'classic_rock'];
+export const offScene = genreIds => OFF_SCENE.filter(n => !genreIds.some(t => t.endsWith(':' + n)))
+  .flatMap(n => ['genre:qloo', 'subgenre:qloo', 'genre:music'].map(k => `urn:tag:${k}:${n}`)).join(',');
 const peers = (a, extra) => ({
   'filter.type': 'urn:entity:artist', 'signal.interests.entities': a.id, 'filter.exclude.entities': a.id,
   ...(a.popularity && { 'filter.popularity.max': a.popularity }),
   ...(a.genreIds?.length && { 'filter.tags': a.genreIds.join(','), 'operator.filter.tags': 'union' }),
+  'filter.exclude.tags': offScene(a.genreIds || []),
   take: 8, ...extra,
 });
 export const coBill = (env, a, c) => insights(env, peers(a, { 'signal.location': `POINT(${c.lon} ${c.lat})` }));

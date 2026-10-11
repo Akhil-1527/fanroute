@@ -232,7 +232,7 @@ $('#ask').onsubmit = async e => {
   try {
     const r = await (await fetch('/api/ask', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: chat, params: { ...Object.fromEntries(new FormData($('#plan'))), ...params }, context: plan?.brief }),
+      body: JSON.stringify({ messages: chat, params: { ...Object.fromEntries(new FormData($('#plan'))), ...params, keep: plan?.stops.map(s => s.name) }, context: plan?.brief }),
     })).json();
     say('assistant', r.reply || 'No answer.');
     if (r.plan) render(r.plan);
@@ -385,7 +385,7 @@ $('#stops').onclick = async e => {
   }
   if (b.dataset.drop) {
     params = { ...params, skip: [...params.skip, b.dataset.drop] };
-    run(params);
+    run({ ...params, keep: plan.stops.map(s => s.name) });
   }
 };
 </script>
